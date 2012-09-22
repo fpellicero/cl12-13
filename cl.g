@@ -265,7 +265,7 @@ expr: term ((AND^ | OR^) term)*;
 term: term2 ((EQ^|LT^|GT^) term2)*;
 term2: term3 ((PLUS^|MINUS^) term3)*;
 term3: term4 ((TIMES^|DIV^) term4)*;
-term4: (NOT^|MINUS^)* term5 ;
+term4: (NOT^|MINUS^) term4 | term5;
 term5:
         IDENT^ (DOT^ IDENT)*
       | INTCONST
