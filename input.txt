@@ -1,0 +1,7 @@
+PROGRAM
+  VARS
+    x INT
+  ENDVARS
+  x := 5 + 5 - 5
+  
+ENDPROGRAM
