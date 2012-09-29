@@ -206,17 +206,32 @@ int main(int argc,char *argv[])
 #token ENDPROGRAM   "ENDPROGRAM"
 #token VARS         "VARS"
 #token ENDVARS      "ENDVARS"
+#token PROCEDURE    "PROCEDURE"
+#token ENDPROCEDURE "ENDPROCEDURE"
 #token INT          "INT"
 #token BOOL         "BOOL"
 #token STRUCT       "STRUCT"
 #token ENDSTRUCT    "ENDSTRUCT"
+#token ARRAY        "ARRAY"
+#token OF           "OF"
 #token WRITELN      "WRITELN"
+#token IF           "IF"
+#token THEN         "THEN"
+#token ELSE         "ELSE"
+#token ENDIF        "ENDIF"
+#token WHILE        "WHILE"
+#token DO           "DO"
+#token ENDWHILE     "ENDWHILE"
+#token VAL          "VAL"
+#token REF          "REF"
 #token PLUS         "\+"
 #token MINUS        "\-"
 #token TIMES        "\*"
 #token DIV          "\/"
 #token OPENPAR      "\("
 #token CLOSEPAR     "\)"
+#token OPENBRA      "\["
+#token CLOSEBRA     "\]"
 #token ASIG         ":="
 #token DOT          "."
 #token GT           "\<"
@@ -247,18 +262,26 @@ dec_var: IDENT^ constr_type;
 
 l_dec_blocs: ( dec_bloc )* <<#0=createASTlist(_sibling);>> ;
 
-dec_bloc: (PROCEDURE^ ENDPROCEDURE |
-           FUNCTION^ ENDFUNCTION)<</*needs modification*/ >>;
+dec_bloc: (PROCEDURE^ procheader (dec_bloc | ) l_instrs ENDPROCEDURE 
+	  | FUNCTION^ ENDFUNCTION)<</*needs modification*/ >>;
 
-constr_type: INT | STRUCT^ (field)* ENDSTRUCT! | BOOL;
+procheader: IDENT OPENPAR! ((VAL | REF) IDENT INT| )  CLOSEPAR!;
+
+constr_type:  INT 
+	    | STRUCT^ (field)* ENDSTRUCT! | BOOL
+	    | ARRAY^ OPENBRA! INTCONST CLOSEBRA! OF! constr_type;
 
 field: IDENT^ constr_type;
 
 l_instrs: (instruction)* <<#0=createASTlist(_sibling);>>;
 
+var: IDENT (DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)*;
+
 instruction:
-        IDENT ( DOT^ IDENT)* ASIG^ expr
-	|	WRITELN^ OPENPAR! ( expr | STRING ) CLOSEPAR!;
+          IDENT ((DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* ASIG^ expr | OPENPAR! (INTCONST | IDENT) CLOSEPAR!)
+	| WRITELN^ OPENPAR! ( expr | STRING ) CLOSEPAR!
+	| IF^ expr THEN! l_instrs (ELSE! l_instrs | ) ENDIF!
+	| WHILE^ expr DO! l_instrs ENDWHILE! ;
 
 
 expr: term ((AND^ | OR^) term)*;
@@ -266,8 +289,7 @@ term: term2 ((EQ^|LT^|GT^) term2)*;
 term2: term3 ((PLUS^|MINUS^) term3)*;
 term3: term4 ((TIMES^|DIV^) term4)*;
 term4: (NOT^|MINUS^) term4 | term5;
-term5:
-        IDENT^ (DOT^ IDENT)*
+term5:  var
       | INTCONST
       | OPENPAR! expr CLOSEPAR!
       | True
