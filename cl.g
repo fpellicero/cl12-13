@@ -262,10 +262,12 @@ dec_var: IDENT^ constr_type;
 
 l_dec_blocs: ( dec_bloc )* <<#0=createASTlist(_sibling);>> ;
 
-dec_bloc: (PROCEDURE^ procheader (dec_bloc | ) l_instrs ENDPROCEDURE 
+dec_bloc: (PROCEDURE^ proc_header  dec_vars l_dec_blocs l_instrs ENDPROCEDURE! 
 	  | FUNCTION^ ENDFUNCTION)<</*needs modification*/ >>;
 
-procheader: IDENT OPENPAR! ((VAL | REF) IDENT INT| )  CLOSEPAR!;
+proc_header: IDENT^ OPENPAR! l_dec_input CLOSEPAR!;
+l_dec_input: (dec_input) <<#0=createASTlist(_sibling);>>;
+dec_input: ((VAL^ | REF^) IDENT INT)*;
 
 constr_type:  INT 
 	    | STRUCT^ (field)* ENDSTRUCT! | BOOL
@@ -275,10 +277,10 @@ field: IDENT^ constr_type;
 
 l_instrs: (instruction)* <<#0=createASTlist(_sibling);>>;
 
-var: IDENT (DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)*;
+var: IDENT (DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* (OPENPAR (expr | ) CLOSEPAR | );
 
 instruction:
-          IDENT ((DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* ASIG^ expr | OPENPAR! (INTCONST | IDENT) CLOSEPAR!)
+          IDENT (((DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* ASIG^ expr | OPENPAR! (expr) CLOSEPAR!))
 	| WRITELN^ OPENPAR! ( expr | STRING ) CLOSEPAR!
 	| IF^ expr THEN! l_instrs (ELSE! l_instrs | ) ENDIF!
 	| WHILE^ expr DO! l_instrs ENDWHILE! ;
