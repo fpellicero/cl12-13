@@ -55,6 +55,10 @@ void zzcr_attr(Attrib *attr,int type,char *text)
     attr->kind="intconst";
     attr->text=text;
     break;
+  case STRING:
+    attr->kind="string";
+    attr->text=text;
+    break;
   default:
     attr->kind=lowercase(text);
     attr->text="";
@@ -208,6 +212,9 @@ int main(int argc,char *argv[])
 #token ENDVARS      "ENDVARS"
 #token PROCEDURE    "PROCEDURE"
 #token ENDPROCEDURE "ENDPROCEDURE"
+#token FUNCTION     "FUNCTION"
+#token ENDFUNCTION  "ENDFUNCTION"
+#token RETURN       "RETURN"
 #token INT          "INT"
 #token BOOL         "BOOL"
 #token STRUCT       "STRUCT"
@@ -215,6 +222,8 @@ int main(int argc,char *argv[])
 #token ARRAY        "ARRAY"
 #token OF           "OF"
 #token WRITELN      "WRITELN"
+#token WRITE        "WRITE"
+#token READ         "READ"
 #token IF           "IF"
 #token THEN         "THEN"
 #token ELSE         "ELSE"
@@ -224,6 +233,7 @@ int main(int argc,char *argv[])
 #token ENDWHILE     "ENDWHILE"
 #token VAL          "VAL"
 #token REF          "REF"
+#token COMMA        "\,"
 #token PLUS         "\+"
 #token MINUS        "\-"
 #token TIMES        "\*"
@@ -243,6 +253,7 @@ int main(int argc,char *argv[])
 #token True         "TRUE"
 #token False        "FALSE"
 #token IDENT        "[a-zA-Z][a-zA-Z0-9]*"
+#token STRING       "[\"][a-zA-Z:\ \t]*[\"]"
 #token INTCONST     "[0-9]+"
 #token COMMENT      "//~[\n]*" << printf("%s",zzlextext); zzskip(); >>
 #token WHITESPACE   "[\ \t]+"  << printf("%s",zzlextext); zzskip(); >>
@@ -263,15 +274,22 @@ dec_var: IDENT^ constr_type;
 l_dec_blocs: ( dec_bloc )* <<#0=createASTlist(_sibling);>> ;
 
 dec_bloc: (PROCEDURE^ proc_header  dec_vars l_dec_blocs l_instrs ENDPROCEDURE! 
-	  | FUNCTION^ ENDFUNCTION)<</*needs modification*/ >>;
+	  | FUNCTION^ func_header dec_vars l_dec_blocs l_instrs ret ENDFUNCTION!)
+	  ;
 
 proc_header: IDENT^ OPENPAR! l_dec_input CLOSEPAR!;
-l_dec_input: (dec_input) <<#0=createASTlist(_sibling);>>;
-dec_input: ((VAL^ | REF^) IDENT INT)*;
+func_header: IDENT^ OPENPAR! l_dec_input CLOSEPAR! RETURN! constr_type;
+
+l_dec_input: (dec_input | ) (COMMA! dec_input)*  <<#0=createASTlist(_sibling);>>;
+dec_input: (( VAL^  |  REF^ ) IDENT constr_type);
+
+ret: RETURN! expr;
 
 constr_type:  INT 
-	    | STRUCT^ (field)* ENDSTRUCT! | BOOL
-	    | ARRAY^ OPENBRA! INTCONST CLOSEBRA! OF! constr_type;
+            | BOOL
+	    | STRUCT^ (field)* ENDSTRUCT! 
+	    | ARRAY^ OPENBRA! INTCONST CLOSEBRA! OF! constr_type
+	    ;
 
 field: IDENT^ constr_type;
 
@@ -279,11 +297,13 @@ l_instrs: (instruction)* <<#0=createASTlist(_sibling);>>;
 
 instruction:
           IDENT ((DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* ASIG^ expr | OPENPAR^ l_expr CLOSEPAR!)
-	| WRITELN^ OPENPAR! ( expr | STRING ) CLOSEPAR!
+	| (WRITELN^ | WRITE^) OPENPAR! ( expr | STRING ) CLOSEPAR!
+	| READ^ OPENPAR! IDENT CLOSEPAR!
 	| IF^ expr THEN! l_instrs (ELSE! l_instrs | ) ENDIF!
-	| WHILE^ expr DO! l_instrs ENDWHILE! ;
+	| WHILE^ expr DO! l_instrs ENDWHILE!
+	;
 
-l_expr: (expr) <<#0=createASTlist(_sibling);>>;
+l_expr: (expr | ) (COMMA! expr)* <<#0=createASTlist(_sibling);>>;
 	
 expr: term ((AND^ | OR^) term)*;
 term: term2 ((EQ^|LT^|GT^) term2)*;
