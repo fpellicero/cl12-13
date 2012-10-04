@@ -277,21 +277,20 @@ field: IDENT^ constr_type;
 
 l_instrs: (instruction)* <<#0=createASTlist(_sibling);>>;
 
-var: IDENT (DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* (OPENPAR (expr | ) CLOSEPAR | );
-
 instruction:
-          IDENT (((DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* ASIG^ expr | OPENPAR! (expr) CLOSEPAR!))
+          IDENT ((DOT^ IDENT | OPENBRA^ expr CLOSEBRA!)* ASIG^ expr | OPENPAR^ l_expr CLOSEPAR!)
 	| WRITELN^ OPENPAR! ( expr | STRING ) CLOSEPAR!
 	| IF^ expr THEN! l_instrs (ELSE! l_instrs | ) ENDIF!
 	| WHILE^ expr DO! l_instrs ENDWHILE! ;
 
-
+l_expr: (expr) <<#0=createASTlist(_sibling);>>;
+	
 expr: term ((AND^ | OR^) term)*;
 term: term2 ((EQ^|LT^|GT^) term2)*;
 term2: term3 ((PLUS^|MINUS^) term3)*;
 term3: term4 ((TIMES^|DIV^) term4)*;
 term4: (NOT^|MINUS^) term4 | term5;
-term5:  var
+term5:  IDENT (DOT^ IDENT | OPENBRA^ expr CLOSEBRA! | OPENPAR^ l_expr CLOSEPAR!)*
       | INTCONST
       | OPENPAR! expr CLOSEPAR!
       | True
