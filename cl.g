@@ -253,7 +253,7 @@ int main(int argc,char *argv[])
 #token True         "TRUE"
 #token False        "FALSE"
 #token IDENT        "[a-zA-Z][a-zA-Z0-9]*"
-#token STRING       "[\"][a-zA-Z:\ \t]*[\"]"
+#token STRING       "[\"][a-zA-Z0-9:\ \t]*[\"]"
 #token INTCONST     "[0-9]+"
 #token COMMENT      "//~[\n]*" << printf("%s",zzlextext); zzskip(); >>
 #token WHITESPACE   "[\ \t]+"  << printf("%s",zzlextext); zzskip(); >>

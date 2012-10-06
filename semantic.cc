@@ -262,7 +262,48 @@ void TypeCheck(AST *a,string info)
 	a->tp=child(a,0)->tp->struct_field[child(a,1)->text];
       }
     }
-  } 
+  }
+  else if (a->kind=="true" || a->kind=="false") {
+    a->tp = create_type("bool",0,0);
+  }
+  else if (a->kind=="<" || a->kind==">") {
+      TypeCheck(child(a,0));
+      TypeCheck(child(a,1));
+      if (child(a,0)->tp->kind == "int" && child(a,1)->tp->kind == "int")
+	a->tp = create_type("bool",0,0);
+      else if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error")
+	errorincompatibleoperator(a->line,a->kind);
+  }
+  else if (a->kind=="or" || a->kind=="and") {
+    TypeCheck(child(a,0));
+    TypeCheck(child(a,1));
+    if (child(a,0)->tp->kind == "bool" && child(a,1)->tp->kind == "bool")
+	a->tp = create_type("bool",0,0);
+      else if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error")
+	errorincompatibleoperator(a->line,a->kind);
+  }
+  else if (a->kind=="=") {
+    TypeCheck(child(a,0));
+    TypeCheck(child(a,1));
+    if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error" && equivalent_types(child(a,0)->tp,child(a,1)->tp))
+	a->tp = create_type("bool",0,0);
+      else if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error")
+	errorincompatibleoperator(a->line,a->kind);
+  }
+  else if (a->kind == "not") {
+      TypeCheck(child(a,0));
+      if(child(a,0)->tp->kind == "bool") 
+	a->tp = create_type("bool",0,0);
+      else if (child(a,0)->tp->kind != "error")
+	errorincompatibleoperator(a->line,a->kind);
+  }
+  else if (a->kind == "-") {
+      TypeCheck(child(a,0));
+      if(child(a,0)->tp->kind == "int") 
+	a->tp = create_type("int",0,0);
+      else if (child(a,0)->tp->kind != "error")
+	errorincompatibleoperator(a->line,a->kind);
+  }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind<<endl;
   }
