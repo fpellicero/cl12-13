@@ -269,40 +269,46 @@ void TypeCheck(AST *a,string info)
   else if (a->kind=="<" || a->kind==">") {
       TypeCheck(child(a,0));
       TypeCheck(child(a,1));
-      if (child(a,0)->tp->kind == "int" && child(a,1)->tp->kind == "int")
-	a->tp = create_type("bool",0,0);
-      else if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error")
+      if ((child(a,0)->tp->kind != "error" && child(a,0)->tp->kind != "int") ||
+	 (child(a,1)->tp->kind != "error" && child(a,1)->tp->kind != "int")) {
 	errorincompatibleoperator(a->line,a->kind);
+      }
+      a->tp = create_type("bool",0,0);
   }
   else if (a->kind=="or" || a->kind=="and") {
     TypeCheck(child(a,0));
     TypeCheck(child(a,1));
-    if (child(a,0)->tp->kind == "bool" && child(a,1)->tp->kind == "bool")
-	a->tp = create_type("bool",0,0);
-      else if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error")
-	errorincompatibleoperator(a->line,a->kind);
+    if ((child(a,0)->tp->kind != "error" && child(a,0)->tp->kind != "bool") ||
+	(child(a,1)->tp->kind != "error" && child(a,1)->tp->kind != "bool")) {
+      	  errorincompatibleoperator(a->line,a->kind);
+    }
+    a->tp = create_type("bool",0,0);
   }
   else if (a->kind=="=") {
     TypeCheck(child(a,0));
     TypeCheck(child(a,1));
-    if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error" && equivalent_types(child(a,0)->tp,child(a,1)->tp))
-	a->tp = create_type("bool",0,0);
-      else if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error")
-	errorincompatibleoperator(a->line,a->kind);
+    if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error" && !equivalent_types(child(a,0)->tp,child(a,1)->tp))
+      errorincompatibleoperator(a->line,a->kind);
+    a->tp = create_type("bool",0,0);
   }
   else if (a->kind == "not") {
       TypeCheck(child(a,0));
-      if(child(a,0)->tp->kind == "bool") 
-	a->tp = create_type("bool",0,0);
-      else if (child(a,0)->tp->kind != "error")
+      if (child(a,0)->tp->kind != "error" && child(a,0)->tp->kind != "bool") 
 	errorincompatibleoperator(a->line,a->kind);
+      a->tp = create_type("bool",0,0);
   }
   else if (a->kind == "-") {
       TypeCheck(child(a,0));
-      if(child(a,0)->tp->kind == "int") 
-	a->tp = create_type("int",0,0);
-      else if (child(a,0)->tp->kind != "error")
+      if (child(a,0)->tp->kind != "error" && child(a,0)->tp->kind != "int") 
 	errorincompatibleoperator(a->line,a->kind);
+      a->tp = create_type("int",0,0);
+  }
+  else if (a->kind == "if" || a->kind == "while") {
+    TypeCheck(child(a,0));
+    if (child(a,0)->tp->kind != "error" && child(a,0)->tp->kind != "bool" )
+      errorbooleanrequired(a->line,a->kind);
+    TypeCheck(child(a,1), "instruction");
+    TypeCheck(child(a,2),"instruction");
   }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind<<endl;
