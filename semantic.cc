@@ -157,6 +157,16 @@ void construct_struct(AST *a)
   }
 }
 
+void construct_array(AST *a)
+{
+  TypeCheck(child(a,0));
+  TypeCheck(child(a,1));
+  AST *a0 = child(a,0);
+  AST *a1 = child(a,1);
+  a->tp = create_type("array",a1->tp,0);
+  a->tp->numelemsarray = atoi(a0->text.c_str());
+}
+
 void create_header(AST *a)
 {
   //...
@@ -211,6 +221,9 @@ void TypeCheck(AST *a,string info)
   else if (a->kind=="struct") {
     construct_struct(a);
   }
+  else if (a->kind == "array") {
+    construct_array(a);
+  }
   else if (a->kind==":=") {
     TypeCheck(child(a,0));
     TypeCheck(child(a,1));
@@ -263,6 +276,22 @@ void TypeCheck(AST *a,string info)
       }
     }
   }
+  else if (a->kind == "[") {
+    TypeCheck(child(a,0));
+    TypeCheck(child(a,1));
+    a->ref=child(a,0)->ref;
+    if (child(a,0)->tp->kind != "error") {
+      if (child(a,0)->tp->kind != "array") {
+        errorincompatibleoperator(a->line,"array[]");
+      }
+      else {
+        a->tp=child(a,0)->tp->down;
+        if (child(a,1)->tp->kind != "error" && child(a,1)->tp->kind != "int") {
+          errorincompatibleoperator(a->line,"[]");
+        } 
+      }   
+    }
+  }
   else if (a->kind=="true" || a->kind=="false") {
     a->tp = create_type("bool",0,0);
   }
@@ -287,7 +316,9 @@ void TypeCheck(AST *a,string info)
   else if (a->kind=="=") {
     TypeCheck(child(a,0));
     TypeCheck(child(a,1));
-    if (child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error" && !equivalent_types(child(a,0)->tp,child(a,1)->tp))
+    if ((child(a,0)->tp->kind != "error" && child(a,1)->tp->kind != "error") && 
+      (!equivalent_types(child(a,0)->tp,child(a,1)->tp) || 
+      (!isbasickind(child(a,0)->tp->kind) || !isbasickind(child(a,1)->tp->kind))))
       errorincompatibleoperator(a->line,a->kind);
     a->tp = create_type("bool",0,0);
   }
@@ -311,7 +342,7 @@ void TypeCheck(AST *a,string info)
     TypeCheck(child(a,2),"instruction");
   }
   else {
-    cout<<"BIG PROBLEM! No case defined for kind "<<a->kind<<endl;
+    cout<<"BIG PROBLEM en semantic.cc! No case defined for kind "<<a->kind<<endl;
   }
 
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
