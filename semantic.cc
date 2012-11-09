@@ -132,6 +132,14 @@ void check_params(AST *a,ptype tp,int line,int numparam)
   //...
 }
 
+void insert_params(AST *a) {
+  if (!a) return;
+  TypeCheck(child(a,0));
+  TypeCheck(child(a,1));
+  InsertintoST(a->line, "idpar" + a->kind, child(a,0)->text, child(a,1)->tp );
+  insert_params(a->right);
+
+}
 void insert_vars(AST *a)
 {
   if (!a) return;
@@ -169,13 +177,32 @@ void construct_array(AST *a)
 
 void create_header(AST *a)
 {
-  //...
+  AST *ant = 0;
+  for (AST *a1=a->down;a1!=0;a1=a1->right) {
+    TypeCheck(child(a1,1));
+    a1->tp =  create_type("par" + a1->kind, child(a1,1)->tp, 0);
+    if (ant != 0) ant->right = a1;
+    ant = a1;
+  }
+
 }
 
 
 void insert_header(AST *a)
 {
-  //...
+  // Agafem la llista de parametres
+  AST *a1 = child(child(a,0),0);
+
+  // Si tenim parametres, creem l'arbre de ptype
+  if ( child(a1,0) != 0) {
+    create_header(a1);
+    a->tp = create_type( "procedure", child(a1,0)->tp, 0 );  
+  }else {
+    a->tp = create_type( "procedure", 0, 0 );
+  }
+
+  // Insertem el header a la symtab
+  InsertintoST(a->line, "idproc", child(a,0)->text, a->tp);
 }
 
 void insert_headers(AST *a)
@@ -197,12 +224,28 @@ void TypeCheck(AST *a,string info)
   if (a->kind=="program") {
     a->sc=symboltable.push();
     insert_vars(child(child(a,0),0));
-    //insert_headers(child(child(a,1),0));
-    //TypeCheck(child(a,1));
+    
+    insert_headers(child(child(a,1),0));
+    TypeCheck(child(a,1));
+
     TypeCheck(child(a,2),"instruction");
 
     symboltable.pop();
-  } 
+  }
+  else if (a->kind == "procedure") {
+    a->sc=symboltable.push();
+
+    // Insertem parametres d'entrada a la symtab.
+    insert_params(child( child(child(a,0),0) ,0));
+
+    insert_vars(child(child(a,1),0)); 
+    insert_headers(child(child(a,2),0));
+    symboltable.write();
+    TypeCheck(child(a,2));
+    TypeCheck(child(a,3),"instruction");
+    
+    symboltable.pop();
+  }
   else if (a->kind=="list") {
     // At this point only instruction, procedures or parameters lists are possible.
     for (AST *a1=a->down;a1!=0;a1=a1->right) {
