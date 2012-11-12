@@ -20,7 +20,6 @@ using namespace std;
 // feedback the main program with our error status
 int TypeError = 0;
 
-
 /// ---------- Error reporting routines --------------
 
 void errornumparam(int l) {
@@ -129,12 +128,41 @@ bool isbasickind(string kind) {
 
 void check_params(AST *a,ptype tp,int line,int numparam)
 {
-  //...
+  if (!a) return;
+  // Contem num parametres a la crida
+  int nParams = 0;
+  for (AST *a1=a->down;a1!=0;a1=a1->right) {
+    nParams++;
+  }
+  // Contem cuans n'hi hauria d'haver
+  int nParams2 = 0;
+  for (ttypenode *a1=tp->down;a1!=0;a1=a1->right) {
+    nParams2++;
+  }
+  // Si no hi han els mateixos, error
+  if (nParams != nParams2) {
+    errornumparam(line);
+  }else {
+    int i = 0;
+    tp = tp->down;
+    for (AST *a1=a->down;a1!=0;a1=a1->right) {
+      i++;
+      TypeCheck(a1);
+      if (tp->kind == "parref" && !a1->ref) {
+        errorreferenceableparam(line,i);
+      }else if(!equivalent_types(tp->down,a1->tp)) {
+        errorincompatibleparam(line,i);
+      }
+      tp = tp->right;
+    }
+  }
+
+
 }
 
 void insert_params(AST *a) {
   if (!a) return;
-  TypeCheck(child(a,0));
+  //TypeCheck(child(a,0));
   TypeCheck(child(a,1));
   InsertintoST(a->line, "idpar" + a->kind, child(a,0)->text, child(a,1)->tp );
   insert_params(a->right);
@@ -175,32 +203,49 @@ void construct_array(AST *a)
   a->tp->numelemsarray = atoi(a0->text.c_str());
 }
 
+void create_params(AST *a) {
+  TypeCheck(child(a, 1));
+  if (a->right)
+    {
+      create_params(a->right);
+      a->tp = create_type("par" + a->kind, child(a, 1)->tp, a->right->tp);
+    }
+  else
+    {
+      a->tp = create_type("par" + a->kind, child(a, 1)->tp, 0);
+    }
+}
+
 void create_header(AST *a)
 {
+  AST *a1 = child(child(child(a,0),0),0);
+
+  if (a1) create_params(a1);
+
+  if(a->kind == "procedure") {
+    if(a1) {
+      a->tp = create_type(a->kind,a1->tp,0);
+    }else {
+      a->tp = create_type(a->kind,0,0);
+    }
+  }
+  /*
   AST *ant = 0;
+  int numParams = 1;
   for (AST *a1=a->down;a1!=0;a1=a1->right) {
     TypeCheck(child(a1,1));
     a1->tp =  create_type("par" + a1->kind, child(a1,1)->tp, 0);
     if (ant != 0) ant->right = a1;
     ant = a1;
   }
-
+  */
 }
 
 
 void insert_header(AST *a)
 {
   // Agafem la llista de parametres
-  AST *a1 = child(child(a,0),0);
-
-  // Si tenim parametres, creem l'arbre de ptype
-  if ( child(a1,0) != 0) {
-    create_header(a1);
-    a->tp = create_type( "procedure", child(a1,0)->tp, 0 );  
-  }else {
-    a->tp = create_type( "procedure", 0, 0 );
-  }
-
+  create_header(a);
   // Insertem el header a la symtab
   InsertintoST(a->line, "idproc", child(a,0)->text, a->tp);
 }
@@ -234,16 +279,13 @@ void TypeCheck(AST *a,string info)
   }
   else if (a->kind == "procedure") {
     a->sc=symboltable.push();
-
     // Insertem parametres d'entrada a la symtab.
     insert_params(child( child(child(a,0),0) ,0));
-
+    //symboltable.write();
     insert_vars(child(child(a,1),0)); 
     insert_headers(child(child(a,2),0));
-    symboltable.write();
     TypeCheck(child(a,2));
     TypeCheck(child(a,3),"instruction");
-    
     symboltable.pop();
   }
   else if (a->kind=="list") {
@@ -258,7 +300,9 @@ void TypeCheck(AST *a,string info)
     } 
     else {
       a->tp=symboltable[a->text].tp;
-      a->ref=1;
+      // Comprobem si l'expressio es referenciable
+      if (a->tp->kind == "procedure")  a->ref=0;
+      else a->ref = 1;
     }
   } 
   else if (a->kind=="struct") {
@@ -317,6 +361,17 @@ void TypeCheck(AST *a,string info)
       else {
 	a->tp=child(a,0)->tp->struct_field[child(a,1)->text];
       }
+    }
+  }
+  else if (a->kind == "(") {
+    TypeCheck(child(a,0));
+    //cout << child(a,0)->tp->kind << " --- " << info << endl;
+    if (child(a, 0)->tp->kind != "procedure" && info == "instruction") {
+      errorisnotprocedure(a->line);       
+    }else if (child(a, 0)->tp->kind != "function" && info != "instruction") {
+      errorisnotfunction(a->line);
+    }else {
+      check_params (child(a,1), child(a,0)->tp, a->line, 0);
     }
   }
   else if (a->kind == "[") {
