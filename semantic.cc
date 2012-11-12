@@ -150,7 +150,8 @@ void check_params(AST *a,ptype tp,int line,int numparam)
       TypeCheck(a1);
       if (tp->kind == "parref" && !a1->ref) {
         errorreferenceableparam(line,i);
-      }else if(!equivalent_types(tp->down,a1->tp)) {
+      }
+      if(a1->tp->kind != "error" && !equivalent_types(tp->down,a1->tp)) {
         errorincompatibleparam(line,i);
       }
       tp = tp->right;
@@ -366,13 +367,17 @@ void TypeCheck(AST *a,string info)
   else if (a->kind == "(") {
     TypeCheck(child(a,0));
     //cout << child(a,0)->tp->kind << " --- " << info << endl;
-    if (child(a, 0)->tp->kind != "procedure" && info == "instruction") {
-      errorisnotprocedure(a->line);       
-    }else if (child(a, 0)->tp->kind != "function" && info != "instruction") {
-      errorisnotfunction(a->line);
-    }else {
-      check_params (child(a,1), child(a,0)->tp, a->line, 0);
+    if (child(a,0)->tp->kind != "error") {
+      if (child(a, 0)->tp->kind != "procedure" && info == "instruction") {
+        errorisnotprocedure(a->line);       
+      }else if (child(a, 0)->tp->kind != "function" && info != "instruction") {
+        errorisnotfunction(a->line);
+      }
+      if (child(a,0)->tp->kind == "procedure") {
+        check_params (child(a,1), child(a,0)->tp, a->line, 0);
+      }
     }
+    
   }
   else if (a->kind == "[") {
     TypeCheck(child(a,0));
