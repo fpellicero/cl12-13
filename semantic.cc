@@ -121,7 +121,7 @@ static void InsertintoST(int line,string kind,string id,ptype tp)
 /// ------------------------------------------------------------
 
 bool isbasickind(string kind) {
-  return kind=="int" || kind=="bool";
+  return kind == "int" || kind == "bool" || kind == "string";
 }
 
 
