@@ -125,7 +125,7 @@ bool isbasickind(string kind) {
 }
 
 
-
+/// Function used to check parameters on procedure and function calls
 void check_params(AST *a,ptype tp,int line,int numparam)
 {
   if (!a) return;
@@ -161,6 +161,7 @@ void check_params(AST *a,ptype tp,int line,int numparam)
 
 }
 
+/// -----------------------------------------------------------------
 void insert_params(AST *a) {
   if (!a) return;
   //TypeCheck(child(a,0));
@@ -169,6 +170,7 @@ void insert_params(AST *a) {
   insert_params(a->right);
 
 }
+
 void insert_vars(AST *a)
 {
   if (!a) return;
@@ -176,6 +178,7 @@ void insert_vars(AST *a)
   InsertintoST(a->line,"idvarlocal",a->text,child(a,0)->tp);
   insert_vars(a->right); 
 }
+///------------------------------------------------------------------
 
 void construct_struct(AST *a)
 {
@@ -204,6 +207,8 @@ void construct_array(AST *a)
   a->tp->numelemsarray = atoi(a0->text.c_str());
 }
 
+///------------------------------------------------------------------
+
 void create_params(AST *a) {
   TypeCheck(child(a, 1));
   if (a->right)
@@ -229,6 +234,16 @@ void create_header(AST *a)
     }else {
       a->tp = create_type(a->kind,0,0);
     }
+  }else if (a->kind == "function") {
+    if(a1) {
+      TypeCheck(child(child(a,0),1));
+      a->tp = create_type("function",a1->tp,0);
+      a->tp->right = child(child(a,0),1)->tp;
+    }else {
+      TypeCheck(child(child(a,0),1));
+      a->tp = create_type("function",0,0);
+      a->tp->right = child(child(a,0),1)->tp;
+    }
   }
   /*
   AST *ant = 0;
@@ -241,14 +256,19 @@ void create_header(AST *a)
   }
   */
 }
-
+///------------------------------------------------------------------
 
 void insert_header(AST *a)
 {
   // Agafem la llista de parametres
   create_header(a);
   // Insertem el header a la symtab
-  InsertintoST(a->line, "idproc", child(a,0)->text, a->tp);
+  if (a->tp->kind == "procedure") {
+    InsertintoST(a->line, "idproc", child(a,0)->text, a->tp);  
+  }else if (a->tp->kind == "function") {
+    InsertintoST(a->line, "idfunc", child(a,0)->text, a->tp);
+  }
+  
 }
 
 void insert_headers(AST *a)
@@ -258,7 +278,7 @@ void insert_headers(AST *a)
     a=a->right;
   }
 }
-
+///------------------------------------------------------------------
 
 void TypeCheck(AST *a,string info)
 {
@@ -279,6 +299,7 @@ void TypeCheck(AST *a,string info)
     symboltable.pop();
   }
   else if (a->kind == "procedure") {
+    
     a->sc=symboltable.push();
     // Insertem parametres d'entrada a la symtab.
     insert_params(child( child(child(a,0),0) ,0));
@@ -288,6 +309,24 @@ void TypeCheck(AST *a,string info)
     TypeCheck(child(a,2));
     TypeCheck(child(a,3),"instruction");
     symboltable.pop();
+  }else if (a->kind == "function") {
+    
+    a->sc = symboltable.push();
+
+    insert_params(child( child(child(a,0),0) ,0));
+
+    insert_vars(child(child(a,1),0));
+    insert_headers(child(child(a,2),0));
+    TypeCheck(child(a,2));
+    TypeCheck(child(a,3),"instruction");
+
+    TypeCheck(child(a,4));
+    if(child(a,4)->tp->kind != "error" && !equivalent_types(child(a,4)->tp,a->tp->right)) {
+      errorincompatiblereturn(child(a,4)->line);
+      //cout << "Expected return " << a->tp->kind << " but " << child(a,4)->tp->kind << " found." << endl;
+    }
+    symboltable.pop();
+    
   }
   else if (a->kind=="list") {
     // At this point only instruction, procedures or parameters lists are possible.
@@ -302,7 +341,7 @@ void TypeCheck(AST *a,string info)
     else {
       a->tp=symboltable[a->text].tp;
       // Comprobem si l'expressio es referenciable
-      if (a->tp->kind == "procedure")  a->ref=0;
+      if (a->tp->kind == "procedure" || a->tp->kind == "function")  a->ref=0;
       else a->ref = 1;
     }
   } 
@@ -342,10 +381,20 @@ void TypeCheck(AST *a,string info)
   else if (isbasickind(a->kind)) {
     a->tp=create_type(a->kind,0,0);
   }
-  else if (a->kind=="writeln") {
+  else if (a->kind=="writeln" || a->kind == "write") {
     TypeCheck(child(a,0));
     if (child(a,0)->tp->kind!="error" && !isbasickind(child(a,0)->tp->kind)) {
       errorreadwriterequirebasic(a->line,a->kind);
+    }
+  }
+  else if (a->kind == "read") {
+    TypeCheck(child(a,0));
+    if(child(a,0)->tp->kind != "error") {
+      if(!child(a,0)->ref) {
+        errornonreferenceableexpression(a->line,a->kind);
+      } else if (!isbasickind(child(a,0)->tp->kind)) {
+        errorreadwriterequirebasic(a->line, a->kind);
+      }
     }
   }
   else if (a->kind==".") {
@@ -375,6 +424,9 @@ void TypeCheck(AST *a,string info)
       }
       if (child(a,0)->tp->kind == "procedure") {
         check_params (child(a,1), child(a,0)->tp, a->line, 0);
+      }else if (child(a,0)->tp->kind == "function") {
+        check_params (child(a,1), child(a,0)->tp, a->line, 0);
+        a->tp = child(a,0)->tp->right;
       }
     }
     
@@ -383,17 +435,19 @@ void TypeCheck(AST *a,string info)
     TypeCheck(child(a,0));
     TypeCheck(child(a,1));
     a->ref=child(a,0)->ref;
+    
     if (child(a,0)->tp->kind != "error") {
       if (child(a,0)->tp->kind != "array") {
         errorincompatibleoperator(a->line,"array[]");
+      }else {
+        a->tp=child(a,0)->tp->down;    
       }
-      else {
-        a->tp=child(a,0)->tp->down;
-        if (child(a,1)->tp->kind != "error" && child(a,1)->tp->kind != "int") {
-          errorincompatibleoperator(a->line,"[]");
-        } 
-      }   
     }
+
+    if (child(a,1)->tp->kind != "error" && child(a,1)->tp->kind != "int") {
+      errorincompatibleoperator(a->line,"[]");
+    } 
+    
   }
   else if (a->kind=="true" || a->kind=="false") {
     a->tp = create_type("bool",0,0);
