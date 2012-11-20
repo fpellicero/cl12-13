@@ -131,14 +131,10 @@ void check_params(AST *a,ptype tp,int line,int numparam)
   if (!a) return;
   // Contem num parametres a la crida
   int nParams = 0;
-  for (AST *a1=a->down;a1!=0;a1=a1->right) {
-    nParams++;
-  }
+  for (AST *a1=a->down;a1!=0;a1=a1->right) nParams++;
   // Contem cuans n'hi hauria d'haver
   int nParams2 = 0;
-  for (ttypenode *a1=tp->down;a1!=0;a1=a1->right) {
-    nParams2++;
-  }
+  for (ttypenode *a1=tp->down;a1!=0;a1=a1->right) nParams2++;
   // Si no hi han els mateixos, error
   if (nParams != nParams2) {
     errornumparam(line);
