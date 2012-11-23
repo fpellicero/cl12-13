@@ -209,6 +209,11 @@ codechain GenRight(AST *a,int t)
         GenRight(child(a,1),t+1)  ||
         "lesi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
   }
+  else if (a->kind == ">") {
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "grti t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
   else if (a->kind == "=") {
     c = GenRight(child(a,0),t)    ||
         GenRight(child(a,1),t+1)  ||
@@ -220,7 +225,9 @@ codechain GenRight(AST *a,int t)
         "muli t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
   }
   else if (a->kind == "and") {
-
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "land t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
   }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind <<" in GenRight"<<endl;
