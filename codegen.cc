@@ -119,6 +119,7 @@ void CodeGenRealParams(AST *a,ptype tp,codechain &cpushparam,codechain &cremovep
 }
 
 // ...to be completed:
+// genAdress -> ha de generar el T-Code per obtenir l'adreça d'una expressió
 codechain GenLeft(AST *a,int t)
 {
   codechain c;
@@ -136,8 +137,16 @@ codechain GenLeft(AST *a,int t)
       "addi t"+itostring(t)+" "+
       itostring(child(a,0)->tp->offset[child(a,1)->text])+" t"+itostring(t);
   }
+  /* Inici Modificacions */
+  else if (a->kind == "[") {
+    int sizeElems = child(a,0)->tp->down->size;
+    c = GenLeft(child(a,0),t)   ||
+        GenRight(child(a,1),t+1)  ||
+        "muli t" + itostring(t+1) + " " + itostring(sizeElems) + " t" + itostring(t+1)  ||
+        "addi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
   else {
-    cout<<"BIG PROBLEM! No case defined for kind "<<a->kind<<endl;
+    cout<<"BIG PROBLEM! No case defined for kind "<<a->kind << " in GenLeft" <<endl;
   }
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
   return c;
@@ -145,6 +154,7 @@ codechain GenLeft(AST *a,int t)
 
 
 // ...to be completed:
+// genValue -> ha de generar el T-Code per obtenir el valor de l'expressió
 codechain GenRight(AST *a,int t)
 {
   codechain c;
@@ -173,8 +183,47 @@ codechain GenRight(AST *a,int t)
       GenRight(child(a,1),t+1)||
       "addi t"+itostring(t)+" t"+itostring(t+1)+" t"+itostring(t);
   }
+  /* Inici modificacions */
+  else if (a->kind == "true") {
+    c = "iload 1 t" + itostring(t);
+  }
+  else if (a->kind == "false") {
+    c = "iload 0 t" + itostring(t);
+  }
+  else if(a->kind == "-" && !child(a,1)) {
+    c = GenRight(child(a,0),t)    ||
+        "mini t" + itostring(t) + " t" + itostring(t);
+  }
+  else if (a->kind == "-") {
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "subi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
+  else if (a->kind == "/") {
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "divi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
+  else if (a->kind == "<") {
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "lesi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
+  else if (a->kind == "=") {
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "equi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
+  else if (a->kind == "*") {
+    c = GenRight(child(a,0),t)    ||
+        GenRight(child(a,1),t+1)  ||
+        "muli t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
+  else if (a->kind == "and") {
+
+  }
   else {
-    cout<<"BIG PROBLEM! No case defined for kind "<<a->kind<<endl;
+    cout<<"BIG PROBLEM! No case defined for kind "<<a->kind <<" in GenRight"<<endl;
   }
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
   return c;
@@ -217,6 +266,33 @@ codechain CodeGenInstruction(AST *a,string info="")
     if (a->kind=="writeln") {
       c=c||"wrln";
     }
+  }
+  /* Inici Modificacions */
+  else if (a->kind == "while") {
+    int label = newLabelWhile();
+    c = "etiq while_" + itostring(label)        ||
+        GenRight(child(a,0),0)                  ||
+        "fjmp t0 endwhile_" + itostring(label)  ||
+        CodeGenInstruction(child(a,1),info)     ||
+        "ujmp while_" + itostring(label)        ||
+        "etiq endwhile_" + itostring(label)     ;
+  }
+  else if (a->kind == "if" && child(a,2)) {
+    int label = newLabelIf();
+    c = GenRight(child(a,0),0)              ||
+        "fjmp t0 else_" + itostring(label)  ||
+        CodeGenInstruction(child(a,1),info) ||
+        "ujmp endif_" + itostring(label)    ||
+        "etiq else_" + itostring(label)     ||
+        CodeGenInstruction(child(a,2),info) ||
+        "etiq endif_" + itostring(label)    ;
+
+  }else if (a->kind == "if") {
+    int label = newLabelIf();
+    c = GenRight(child(a,0),0)              ||
+        "fjmp t0 endif_" + itostring(label) ||
+        CodeGenInstruction(child(a,1),info) ||
+        "etiq endif_" + itostring(label)    ;
   }
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
 

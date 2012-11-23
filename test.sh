@@ -1,6 +1,6 @@
 #!/bin/bash
 eval "make"
-cl="./cl < $1 >sol"
+cl="./cl execute < $1 >sol"
 eval $cl
 kompare="kompare s$1 sol"
 eval $kompare
