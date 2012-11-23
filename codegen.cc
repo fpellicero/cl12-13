@@ -301,6 +301,23 @@ codechain CodeGenInstruction(AST *a,string info="")
         CodeGenInstruction(child(a,1),info) ||
         "etiq endif_" + itostring(label)    ;
   }
+  else if (a->kind == "(") {
+    ttypenode* paramType = child(a,0)->tp->down;
+    for (AST *a1=child(a,1)->down;a1!=0;a1=a1->right) {
+      if(paramType->kind == "parval") {
+        c = c || GenRight(a1,0) ||
+            "pushparam t0";
+      }else {
+        c = c || GenLeft(a1,0) ||
+            "pushparam t0";
+      }
+      paramType = paramType->right;
+    }
+    c = c ||
+        "aload static_link t0"  ||
+        "pushparam t0"          ||
+        
+  }
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
 
   return c;
