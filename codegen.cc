@@ -108,14 +108,21 @@ void gencodevariablesandsetsizes(scope *sc,codesubroutine &cs,bool isfunction=0)
 codechain GenLeft(AST *a,int t);
 codechain GenRight(AST *a,int t);
 
-void CodeGenRealParams(AST *a,ptype tp,codechain &cpushparam,codechain &cremoveparam,int t)
+void CodeGenRealParams(AST *a,ttypenode *tp,codechain &cpushparam,codechain &cremoveparam,int t)
 {
   if (!a) return;
-  //cout<<"Starting with node \""<<a->kind<<"\""<<endl;
-
-  //...to be done.
-
-  //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
+  if (tp->kind == "parval") {
+    cpushparam =  cpushparam     ||
+                  GenRight(a,t)  ||
+                  "pushparam t" + itostring(t);
+  }else {
+    cpushparam =  cpushparam    ||
+                  GenLeft(a,t)  ||
+                  "pushparam t" + itostring(t);
+  }
+  cremoveparam =  cremoveparam  ||
+                  "killparam" ;
+  CodeGenRealParams(a->right, tp->right, cpushparam, cremoveparam, 0);
 }
 
 // ...to be completed:
@@ -130,7 +137,20 @@ codechain GenLeft(AST *a,int t)
 
   //cout<<"Starting with node \""<<a->kind<<"\""<<endl;
   if (a->kind=="ident") {
-    c="aload _"+a->text+" t"+itostring(t);
+    if(symboltable.jumped_scopes(a->text)>0) {
+      c = "load static_link t" + itostring(t);
+      for(int i = 1 ; i < symboltable.jumped_scopes(a->text) ; i++) {
+        c = c || "load t" + itostring(t) + " t" + itostring(t);
+      }
+      c = c || "addi t" + itostring(t) + " offset(" + symboltable.idtable(a->text) + ":_" + a->text + ") t" + itostring(t);
+    }
+    else if(symboltable[a->text].kind != "idparref") {
+      c= "aload _"+a->text+" t"+itostring(t);  
+    }
+    else {
+      c = "load _"+a->text+" t"+itostring(t);
+    }
+    
   }
   else if (a->kind=="."){
     c=GenLeft(child(a,0),t)||
@@ -165,12 +185,20 @@ codechain GenRight(AST *a,int t)
 
   //cout<<"Starting with node \""<<a->kind<<"\""<<endl;
   if (a->ref) {
-    if (a->kind=="ident" && symboltable.jumped_scopes(a->text)==0 &&
-	isbasickind(symboltable[a->text].tp->kind) && symboltable[a->text].kind!="idparref") {
-	c="load _"+a->text+" t"+itostring(t);
+    if (a->kind=="ident" && symboltable.jumped_scopes(a->text)==0 && isbasickind(symboltable[a->text].tp->kind)) {
+	     c="load _"+a->text+" t"+itostring(t);
+       if (symboltable[a->text].kind == "idparref") {
+        c = c || "load t" + itostring(t) + " t" + itostring(t);
+       }
+    }
+    else if (a->kind == "ident" && symboltable.jumped_scopes(a->text)>0 && isbasickind(symboltable[a->text].tp->kind)) {
+      c = GenLeft(a,t) || "load t" + itostring(t) + " t" + itostring(t);
+      if (symboltable[a->text].kind == "idparref") {
+        c = c || "load t" + itostring(t) + " t" + itostring(t);
+      }
     }
     else if (isbasickind(a->tp->kind)) {
-      c=GenLeft(a,t)||"load t"+itostring(t)+" t"+itostring(t);
+      c = GenLeft(a,t)||"load t"+itostring(t)+" t"+itostring(t);
     }
     else {//...to be done
     }    
@@ -229,6 +257,10 @@ codechain GenRight(AST *a,int t)
         GenRight(child(a,1),t+1)  ||
         "land t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
   }
+  else if(a->kind == "not") {
+    c = c || GenRight(child(a,0),t) ||
+        "lnot t" + itostring(t) + " t" + itostring(t);
+  }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind <<" in GenRight"<<endl;
   }
@@ -264,7 +296,7 @@ codechain CodeGenInstruction(AST *a,string info="")
   } 
   else if (a->kind=="write" || a->kind=="writeln") {
     if (child(a,0)->kind=="string") {
-      //...to be done.
+      c = c || "wris " + child(a,0)->text;
     } 
     else {//Exp
       c=GenRight(child(a,0),0)||"wrii t0";
@@ -302,20 +334,16 @@ codechain CodeGenInstruction(AST *a,string info="")
         "etiq endif_" + itostring(label)    ;
   }
   else if (a->kind == "(") {
-    ttypenode* paramType = child(a,0)->tp->down;
-    for (AST *a1=child(a,1)->down;a1!=0;a1=a1->right) {
-      if(paramType->kind == "parval") {
-        c = c || GenRight(a1,0) ||
-            "pushparam t0";
-      }else {
-        c = c || GenLeft(a1,0) ||
-            "pushparam t0";
-      }
-      paramType = paramType->right;
-    }
-    c = c ||
-        "aload static_link t0"  ||
-        "pushparam t0"          ||
+    codechain initParams;
+    codechain killParams;
+    CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, 0);
+    c = c                                   || 
+        initParams                          ||
+        "aload static_link t0"              ||
+        "pushparam t0"                      ||
+        "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text   ||
+        "killparam"                         ||
+        killParams                          ;
         
   }
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
@@ -333,8 +361,23 @@ void CodeGenSubroutine(AST *a,list<codesubroutine> &l)
   symboltable.push(a->sc);
   symboltable.setidtable(idtable+"_"+child(a,0)->text);
 
-  //...to be done.
+  gencodevariablesandsetsizes(a->sc,cs);
+  
+  for (AST *a1=child(child(a,2),0);a1!=0;a1=a1->right) {
+    CodeGenSubroutine(a1,l);
+  }
 
+  
+
+  //...to be done.
+  maxoffsetauxspace=0; newLabelIf(true); newLabelWhile(true);
+  cs.c = CodeGenInstruction(child(a,3)) || "retu";
+  if (maxoffsetauxspace>0) {
+    variable_data vd;
+    vd.name="aux_space";
+    vd.size=maxoffsetauxspace;
+    cs.localvariables.push_back(vd);
+  }
   symboltable.pop();
   l.push_back(cs);
   //cout<<"Ending with node \""<<a->kind<<"\""<<endl;
