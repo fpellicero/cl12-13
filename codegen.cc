@@ -339,7 +339,7 @@ codechain CodeGenInstruction(AST *a,string info="")
     CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, 0);
     c = c                                   || 
         initParams                          ||
-        "aload static_link t0"              ||
+        indirections(symboltable.jumped_scopes(child(a,0)->text),0)              ||
         "pushparam t0"                      ||
         "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text   ||
         "killparam"                         ||
