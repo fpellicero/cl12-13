@@ -261,6 +261,21 @@ codechain GenRight(AST *a,int t)
     c = c || GenRight(child(a,0),t) ||
         "lnot t" + itostring(t) + " t" + itostring(t);
   }
+  else if (a->kind == "(") {
+    codechain initParams;
+    codechain killParams;
+    CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t);
+    c = c                                   ||
+        "pushparam 0"                       ||
+        initParams                          ||
+        indirections(symboltable.jumped_scopes(child(a,0)->text),t)              ||
+        "pushparam t" + itostring(t)        ||
+        "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text   ||
+        "killparam"                         ||
+        killParams                          ||
+        "popparam t" + itostring(t)         ;
+        
+  }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind <<" in GenRight"<<endl;
   }
@@ -360,8 +375,11 @@ void CodeGenSubroutine(AST *a,list<codesubroutine> &l)
   cs.name=idtable+"_"+child(a,0)->text;
   symboltable.push(a->sc);
   symboltable.setidtable(idtable+"_"+child(a,0)->text);
-
-  gencodevariablesandsetsizes(a->sc,cs);
+  bool isFunc = false;
+  if(a->kind == "function") {
+    isFunc = true;
+  }
+  gencodevariablesandsetsizes(a->sc,cs, isFunc);
   
   for (AST *a1=child(child(a,2),0);a1!=0;a1=a1->right) {
     CodeGenSubroutine(a1,l);
@@ -371,7 +389,11 @@ void CodeGenSubroutine(AST *a,list<codesubroutine> &l)
 
   //...to be done.
   maxoffsetauxspace=0; newLabelIf(true); newLabelWhile(true);
-  cs.c = CodeGenInstruction(child(a,3)) || "retu";
+  cs.c = CodeGenInstruction(child(a,3));
+  if(isFunc) {
+    cs.c = cs.c || GenRight(child(a,4),0) || "stor t0 returnvalue";
+  }
+  cs.c = cs.c || "retu";
   if (maxoffsetauxspace>0) {
     variable_data vd;
     vd.name="aux_space";
