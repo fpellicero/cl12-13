@@ -308,7 +308,7 @@ FALSE
 		NLA = IDENT;
 	>>
 
-[\"][a-zA-Z0-9:\ \t]*[\"]
+[\"][a-zA-Z0-9:\ \(\)\=\t]*[\"]
 	<<
 		NLA = STRING;
 	>>

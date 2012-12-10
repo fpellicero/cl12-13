@@ -261,6 +261,10 @@ codechain GenRight(AST *a,int t)
     c = c || GenRight(child(a,0),t) ||
         "lnot t" + itostring(t) + " t" + itostring(t);
   }
+  else if (a->kind == "or") {
+    c = c || GenRight(child(a,0),t) || GenRight(child(a,1),t+1) || 
+        "loor t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }
   else if (a->kind == "(") {
     codechain initParams;
     codechain killParams;
@@ -388,7 +392,7 @@ void CodeGenSubroutine(AST *a,list<codesubroutine> &l)
   
 
   //...to be done.
-  maxoffsetauxspace=0; newLabelIf(true); newLabelWhile(true);
+  maxoffsetauxspace; newLabelIf(true); newLabelWhile(true);
   cs.c = CodeGenInstruction(child(a,3));
   if(isFunc) {
     cs.c = cs.c || GenRight(child(a,4),0) || "stor t0 returnvalue";
