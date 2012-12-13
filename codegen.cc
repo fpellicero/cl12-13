@@ -111,15 +111,27 @@ codechain GenRight(AST *a,int t);
 void CodeGenRealParams(AST *a,ttypenode *tp,codechain &cpushparam,codechain &cremoveparam,int t)
 {
   if (!a) return;
-  if (tp->kind == "parval") {
+  if (tp->kind == "parval" && isbasickind(a->tp->kind)) {
     cpushparam =  cpushparam     ||
                   GenRight(a,t)  ||
                   "pushparam t" + itostring(t);
+  }
+  else if(tp->kind == "parval") {
+    
+    cpushparam = cpushparam ||
+                 GenLeft(a,t+1) ||
+                 "aload aux_space t" + itostring(t) ||
+                 "addi t" + itostring(t) + " " + itostring(offsetauxspace) + " t" + itostring(t) ||
+                 "copy t" + itostring(t+1) + " t" + itostring(t) + " " + itostring(a->tp->size) ||
+                 "pushparam t" + itostring(t);
+    offsetauxspace += a->tp->size;
+
   }else {
     cpushparam =  cpushparam    ||
                   GenLeft(a,t)  ||
                   "pushparam t" + itostring(t);
   }
+  
   cremoveparam =  cremoveparam  ||
                   "killparam" ;
   CodeGenRealParams(a->right, tp->right, cpushparam, cremoveparam, 0);
@@ -143,6 +155,9 @@ codechain GenLeft(AST *a,int t)
         c = c || "load t" + itostring(t) + " t" + itostring(t);
       }
       c = c || "addi t" + itostring(t) + " offset(" + symboltable.idtable(a->text) + ":_" + a->text + ") t" + itostring(t);
+    }
+    else if(symboltable[a->text].kind == "idparval" && !isbasickind(a->tp->kind)) {
+            c = "load _"+a->text+" t"+itostring(t);
     }
     else if(symboltable[a->text].kind != "idparref") {
       c= "aload _"+a->text+" t"+itostring(t);  
@@ -266,10 +281,12 @@ codechain GenRight(AST *a,int t)
         "loor t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
   }
   else if (a->kind == "(") {
-    codechain initParams;
-    codechain killParams;
-    CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t);
-    c = c                                   ||
+    
+    if(isbasickind(child(a,0)->tp->right->kind)) {
+      codechain initParams;
+      codechain killParams;
+      CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t);
+      c = c                                   ||
         "pushparam 0"                       ||
         initParams                          ||
         indirections(symboltable.jumped_scopes(child(a,0)->text),t)              ||
@@ -278,6 +295,31 @@ codechain GenRight(AST *a,int t)
         "killparam"                         ||
         killParams                          ||
         "popparam t" + itostring(t)         ;
+      }else {
+        
+        c = c ||
+            "aload aux_space t" + itostring(t) ||
+            "addi t" + itostring(t) + " " + itostring(offsetauxspace) + " t" + itostring(t) ||
+            "pushparam t" + itostring(t);
+        offsetauxspace += child(a,0)->tp->right->size;    
+
+        codechain initParams;
+        codechain killParams;
+        CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t+1);
+
+        c = c ||
+            initParams ||
+            indirections(symboltable.jumped_scopes(child(a,0)->text),t+1) ||
+            "pushparam t" + itostring(t+1) ||
+            "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text ||
+            "killparam" || 
+            "killparam" || 
+            killParams;
+
+        if(offsetauxspace > maxoffsetauxspace) maxoffsetauxspace = offsetauxspace;
+
+
+      }
         
   }
   else {
@@ -392,10 +434,14 @@ void CodeGenSubroutine(AST *a,list<codesubroutine> &l)
   
 
   //...to be done.
-  maxoffsetauxspace; newLabelIf(true); newLabelWhile(true);
+  maxoffsetauxspace=0; newLabelIf(true); newLabelWhile(true);
   cs.c = CodeGenInstruction(child(a,3));
   if(isFunc) {
-    cs.c = cs.c || GenRight(child(a,4),0) || "stor t0 returnvalue";
+    if(isbasickind(child(a,4)->tp->kind)) {
+      cs.c = cs.c || GenRight(child(a,4),0) || "stor t0 returnvalue";
+    }else {
+      cs.c = cs.c || GenLeft(child(a,4),1) || "load returnvalue t0" || "copy t1 t0 " + itostring(child(a,4)->tp->size);
+    }
   }
   cs.c = cs.c || "retu";
   if (maxoffsetauxspace>0) {
