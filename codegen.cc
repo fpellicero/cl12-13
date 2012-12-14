@@ -111,22 +111,12 @@ codechain GenRight(AST *a,int t);
 void CodeGenRealParams(AST *a,ttypenode *tp,codechain &cpushparam,codechain &cremoveparam,int t)
 {
   if (!a) return;
-  if (tp->kind == "parval" && isbasickind(a->tp->kind)) {
+  if (tp->kind == "parval") {
     cpushparam =  cpushparam     ||
                   GenRight(a,t)  ||
                   "pushparam t" + itostring(t);
   }
-  else if(tp->kind == "parval") {
-    
-    cpushparam = cpushparam ||
-                 GenLeft(a,t+1) ||
-                 "aload aux_space t" + itostring(t) ||
-                 "addi t" + itostring(t) + " " + itostring(offsetauxspace) + " t" + itostring(t) ||
-                 "copy t" + itostring(t+1) + " t" + itostring(t) + " " + itostring(a->tp->size) ||
-                 "pushparam t" + itostring(t);
-    offsetauxspace += a->tp->size;
-
-  }else {
+  else {
     cpushparam =  cpushparam    ||
                   GenLeft(a,t)  ||
                   "pushparam t" + itostring(t);
@@ -134,7 +124,7 @@ void CodeGenRealParams(AST *a,ttypenode *tp,codechain &cpushparam,codechain &cre
   
   cremoveparam =  cremoveparam  ||
                   "killparam" ;
-  CodeGenRealParams(a->right, tp->right, cpushparam, cremoveparam, 0);
+  CodeGenRealParams(a->right, tp->right, cpushparam, cremoveparam, t);
 }
 
 // ...to be completed:
@@ -179,6 +169,8 @@ codechain GenLeft(AST *a,int t)
         GenRight(child(a,1),t+1)  ||
         "muli t" + itostring(t+1) + " " + itostring(sizeElems) + " t" + itostring(t+1)  ||
         "addi t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
+  }else if(a->kind == "(") {
+    c = GenRight(a,t);
   }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind << " in GenLeft" <<endl;
@@ -215,7 +207,13 @@ codechain GenRight(AST *a,int t)
     else if (isbasickind(a->tp->kind)) {
       c = GenLeft(a,t)||"load t"+itostring(t)+" t"+itostring(t);
     }
-    else {//...to be done
+    else {
+      c = c   ||
+          GenLeft(a,t+1) ||
+          "aload aux_space t" + itostring(t) ||
+          "addi t" + itostring(t) + " " + itostring(offsetauxspace) + " t" + itostring(t) ||
+          "copy t" + itostring(t+1) + " t" + itostring(t) + " " + itostring(a->tp->size);
+      offsetauxspace += a->tp->size;
     }    
   } 
   else if (a->kind=="intconst") {
@@ -281,46 +279,43 @@ codechain GenRight(AST *a,int t)
         "loor t" + itostring(t) + " t" + itostring(t+1) + " t" + itostring(t);
   }
   else if (a->kind == "(") {
-    
+    // Cadenes de codi per a iniciar i matar parametres
+    codechain initParams;
+    codechain killParams;
+
+    // Direccio del valor de retorn
+    if(!isbasickind(child(a,0)->tp->right->kind)) {
+      initParams = "aload aux_space t" + itostring(t) ||
+                   "addi t" + itostring(t) + " " + itostring(offsetauxspace) + " t" + itostring(t) ||
+                   "pushparam t" + itostring(t)       ;
+      t = t+1;
+      offsetauxspace += child(a,0)->tp->right->size;
+    }else {
+      initParams = "pushparam 0";
+    }
+
+    CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t);
+
+    // Recuperar el valor de retorn
     if(isbasickind(child(a,0)->tp->right->kind)) {
-      codechain initParams;
-      codechain killParams;
-      CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t);
-      c = c                                   ||
-        "pushparam 0"                       ||
-        initParams                          ||
-        indirections(symboltable.jumped_scopes(child(a,0)->text),t)              ||
-        "pushparam t" + itostring(t)        ||
-        "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text   ||
-        "killparam"                         ||
-        killParams                          ||
-        "popparam t" + itostring(t)         ;
-      }else {
+      killParams = killParams || "popparam t" + itostring(t);
+    }else {
+      killParams = killParams || "killparam";
+    }
+
+    c = c                                   ||
+      initParams                          ||
+      indirections(symboltable.jumped_scopes(child(a,0)->text),t)              ||
+      "pushparam t" + itostring(t)        ||
+      "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text   ||
+      "killparam"                         ||
+      killParams                          ;
+
+    if(offsetauxspace > maxoffsetauxspace) maxoffsetauxspace = offsetauxspace;
         
-        c = c ||
-            "aload aux_space t" + itostring(t) ||
-            "addi t" + itostring(t) + " " + itostring(offsetauxspace) + " t" + itostring(t) ||
-            "pushparam t" + itostring(t);
-        offsetauxspace += child(a,0)->tp->right->size;    
-
-        codechain initParams;
-        codechain killParams;
-        CodeGenRealParams(child(a,1)->down, child(a,0)->tp->down, initParams, killParams, t+1);
-
-        c = c ||
-            initParams ||
-            indirections(symboltable.jumped_scopes(child(a,0)->text),t+1) ||
-            "pushparam t" + itostring(t+1) ||
-            "call " + symboltable.idtable(child(a,0)->text) + "_" + child(a,0)->text ||
-            "killparam" || 
-            "killparam" || 
-            killParams;
-
-        if(offsetauxspace > maxoffsetauxspace) maxoffsetauxspace = offsetauxspace;
-
-
-      }
-        
+  }
+  else if(a->kind == ".") {
+    c = c || GenLeft(a,t);
   }
   else {
     cout<<"BIG PROBLEM! No case defined for kind "<<a->kind <<" in GenRight"<<endl;
