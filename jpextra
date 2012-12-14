@@ -1,0 +1,13 @@
+program
+  vars
+    A array[10] of struct
+                     x int
+                     y int
+                   endstruct
+    S struct
+        a array[10] of int
+        b bool
+      endstruct
+  endvars
+  A[3].x := (S.a)[0] + (A[4]).y
+endprogram

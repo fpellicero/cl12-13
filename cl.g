@@ -312,7 +312,7 @@ term3: term4 ((TIMES^|DIV^) term4)*;
 term4: (NOT^|MINUS^) term4 | term5;
 term5:  IDENT (DOT^ IDENT | OPENBRA^ expr CLOSEBRA! | OPENPAR^ l_expr CLOSEPAR!)*
       | INTCONST
-      | OPENPAR! expr CLOSEPAR!
+      | OPENPAR! expr CLOSEPAR! (DOT^ IDENT | OPENBRA^ expr CLOSEBRA! | OPENPAR^ l_expr CLOSEPAR!)*
       | True
       | False
       ;
